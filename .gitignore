@@ -1,3 +1,6 @@
+# Game runtime data (best score is written here at runtime)
+best_score.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

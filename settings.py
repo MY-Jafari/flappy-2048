@@ -113,6 +113,52 @@ CONFETTI_COLORS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Difficulty levels
+# ---------------------------------------------------------------------------
+# Each level tunes the columns (speed, gap, spacing) AND the cube
+# (size, gravity, jump) as decided in the design interview.
+DEFAULT_DIFFICULTY = "medium"
+DIFFICULTY_ORDER = ["easy", "medium", "hard"]
+
+DIFFICULTIES = {
+    "easy": {
+        "label": "EASY",
+        "player_size": 52,
+        "gravity": 1350.0,
+        "jump_velocity": -600.0,
+        "gap_height": 225.0,
+        "base_speed": 130.0,
+        "speed_accel": 0.0035,
+        "column_spacing": 260.0,
+    },
+    "medium": {
+        "label": "MEDIUM",
+        # Medium matches the original values.
+        "player_size": PLAYER_SIZE,
+        "gravity": GRAVITY,
+        "jump_velocity": JUMP_VELOCITY,
+        "gap_height": GAP_HEIGHT,
+        "base_speed": BASE_SPEED,
+        "speed_accel": SPEED_ACCEL,
+        "column_spacing": COLUMN_SPACING,
+    },
+    "hard": {
+        "label": "HARD",
+        "player_size": 62,
+        "gravity": 1650.0,
+        "jump_velocity": -520.0,
+        "gap_height": 185.0,
+        "base_speed": 170.0,
+        "speed_accel": 0.0060,
+        "column_spacing": 240.0,
+    },
+}
+
+# UI colors for the difficulty selector
+UI_SELECT_COLOR = (96, 196, 112)          # green: currently selected level
+UI_SELECT_EDGE = (56, 148, 74)
+
+# ---------------------------------------------------------------------------
 # Storage
 # ---------------------------------------------------------------------------
 import os

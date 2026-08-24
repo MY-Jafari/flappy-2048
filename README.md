@@ -25,10 +25,15 @@ python main.py
 
 ## How to play
 
+- **Choose a difficulty:** the start screen shows three levels —
+  **EASY / MEDIUM / HARD** — each with its own tuned column speed, gap
+  size, and cube (size, gravity, jump). Click one to start; the last
+  choice is remembered for next time.
 - **Jump:** click / tap / Space (also works with ↑ and W). Works on
   touch screens — no keyboard needed.
 - **Pause:** `P` (the game also pauses automatically when the window
-  loses focus). Resume with `P` or Space.
+  loses focus). Resume with `P` or Space. The pause menu also offers
+  Restart and MENU (back to the difficulty selector).
 - **Mute:** `M` or the **SOUND ON/OFF** pill in the bottom-right corner.
 - **Goal:** fly through the gaps. When your cube touches the **number
   badge** in the middle of a gap, the badge's number merges with yours if
@@ -42,9 +47,11 @@ python main.py
 **Hidden cheat code:** while playing (or paused), type `2048` on the
 number row to jump straight to the win screen.
 
-The best score and the mute preference are saved in `best_score.json`
-and survive restarts. Difficulty increases over time — columns scroll
-faster and faster, while the gap size stays fair.
+The best score is tracked **separately per difficulty level** and shown
+on each level button; the mute preference and the last chosen level are
+saved too — all in `best_score.json`, surviving restarts. Difficulty
+increases over time within a run — columns scroll faster and faster,
+while the gap size stays fair.
 
 ## Project structure
 

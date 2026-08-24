@@ -20,10 +20,11 @@ import pygame
 from settings import (
     BADGE_SIZE, CLOUD_COLOR, CLOUD_COUNT, CLOUD_MAX_SPEED, CLOUD_MIN_SPEED,
     COLUMN_COLOR, COLUMN_EDGE_COLOR, COLUMN_EDGE_WIDTH, CONFETTI_COLORS,
-    FADE_COLOR, FONT_NAME, MAX_TILT_DOWN, MAX_TILT_UP, MERGE_PULSE_SCALE,
-    MERGE_PULSE_TIME, SKY_BOTTOM, SKY_TOP, TILE_COLORS, TILE_TEXT_DARK,
-    TILE_TEXT_LIGHT, TILT_SPEED_FACTOR, UI_BUTTON_COLOR, UI_BUTTON_EDGE,
-    UI_BUTTON_HOVER, UI_SUBTEXT_COLOR, UI_TEXT_COLOR, UI_TITLE_COLOR,
+    DIFFICULTIES, DIFFICULTY_ORDER, FADE_COLOR, FONT_NAME, MAX_TILT_DOWN,
+    MAX_TILT_UP, MERGE_PULSE_SCALE, MERGE_PULSE_TIME, SKY_BOTTOM, SKY_TOP,
+    TILE_COLORS, TILE_TEXT_DARK, TILE_TEXT_LIGHT, TILT_SPEED_FACTOR,
+    UI_BUTTON_COLOR, UI_BUTTON_EDGE, UI_BUTTON_HOVER, UI_SELECT_COLOR,
+    UI_SELECT_EDGE, UI_SUBTEXT_COLOR, UI_TEXT_COLOR, UI_TITLE_COLOR,
     WIN_OVERLAY, WINDOW_HEIGHT, WINDOW_WIDTH,
 )
 from game_logic import ease_out_cubic, lerp
@@ -339,36 +340,63 @@ def draw_hud(surface: pygame.Surface, font_cache: FontCache,
     surface.blit(best_pill, (WINDOW_WIDTH - best_pill.get_width() - 14, 14))
 
 
+def _draw_difficulty_button(surface: pygame.Surface, font_cache: FontCache,
+                            rect: pygame.Rect, level: str, best_value: int,
+                            selected: bool,
+                            mouse_pos: Tuple[int, int]) -> Button:
+    """One difficulty pill: label on top, its best score below."""
+    button = Button(rect, "", f"level:{level}")
+    hovered = button.hit(mouse_pos)
+    fill = UI_SELECT_COLOR if selected else (
+        UI_BUTTON_HOVER if hovered else UI_BUTTON_COLOR)
+    edge = UI_SELECT_EDGE if selected else UI_BUTTON_EDGE
+    pygame.draw.rect(surface, fill, rect, border_radius=16)
+    pygame.draw.rect(surface, edge, rect, width=4, border_radius=16)
+    draw_text(surface, DIFFICULTIES[level]["label"],
+              font_cache.get(24, bold=True), (255, 255, 255),
+              center=(rect.centerx, rect.y + 21))
+    draw_text(surface, f"BEST {best_value}", font_cache.get(13, bold=True),
+              (255, 255, 255), center=(rect.centerx, rect.y + 43))
+    return button
+
+
 def draw_start_screen(surface: pygame.Surface, font_cache: FontCache,
-                      mouse_pos: Tuple[int, int], best: int) -> List[Button]:
-    """Title screen with a Play button."""
+                      mouse_pos: Tuple[int, int], level: str,
+                      bests: dict) -> List[Button]:
+    """Title screen with three difficulty buttons (EASY / MEDIUM / HARD)."""
     title_font = font_cache.get(54, bold=True)
     draw_text(surface, "Flappy 2048", title_font, UI_TITLE_COLOR,
-              center=(WINDOW_WIDTH / 2, 150), shadow=True)
+              center=(WINDOW_WIDTH / 2, 125), shadow=True)
 
-    subtitle = font_cache.get(20)
     draw_text(surface, "Match the numbers. Reach 2048!",
-              subtitle, (255, 255, 255),
-              center=(WINDOW_WIDTH / 2, 200), shadow=True)
+              font_cache.get(18), (255, 255, 255),
+              center=(WINDOW_WIDTH / 2, 175), shadow=True)
 
     # Decorative cube
-    tile = _tile_surface(90, color_for_value(64), 64,
-                         font_cache.get(38, bold=True))
-    surface.blit(tile, tile.get_rect(center=(WINDOW_WIDTH // 2, 300)))
+    tile = _tile_surface(76, color_for_value(64), 64,
+                         font_cache.get(32, bold=True))
+    surface.blit(tile, tile.get_rect(center=(WINDOW_WIDTH // 2, 260)))
 
-    if best > 0:
-        draw_text(surface, f"BEST  {best}", font_cache.get(22, bold=True),
-                  (255, 255, 255), center=(WINDOW_WIDTH / 2, 400),
-                  shadow=True)
+    draw_text(surface, "CHOOSE DIFFICULTY",
+              font_cache.get(18, bold=True), (255, 255, 255),
+              center=(WINDOW_WIDTH / 2, 332), shadow=True)
 
-    play = Button(pygame.Rect(WINDOW_WIDTH / 2 - 90, 480, 180, 62),
-                  "PLAY", "play")
-    play.draw(surface, font_cache, mouse_pos)
+    buttons = []
+    y = 362
+    for diff_level in DIFFICULTY_ORDER:
+        rect = pygame.Rect(WINDOW_WIDTH / 2 - 100, y, 200, 56)
+        buttons.append(_draw_difficulty_button(
+            surface, font_cache, rect, diff_level,
+            bests.get(diff_level, 0), diff_level == level, mouse_pos))
+        y += 68
 
-    draw_text(surface, "Click / tap / Space to jump",
-              font_cache.get(16), (255, 255, 255),
-              center=(WINDOW_WIDTH / 2, 580), shadow=True)
-    return [play]
+    draw_text(surface, "Click a level to start",
+              font_cache.get(15, bold=True), (255, 255, 255),
+              center=(WINDOW_WIDTH / 2, 620), shadow=True)
+    draw_text(surface, "Space also starts - jump with click / tap / Space",
+              font_cache.get(14), (255, 255, 255),
+              center=(WINDOW_WIDTH / 2, 650), shadow=True)
+    return buttons
 
 
 def draw_game_over_screen(surface: pygame.Surface, font_cache: FontCache,
@@ -425,22 +453,25 @@ def draw_win_screen(surface: pygame.Surface, font_cache: FontCache,
 
 def draw_pause_screen(surface: pygame.Surface, font_cache: FontCache,
                       mouse_pos: Tuple[int, int]) -> List[Button]:
-    """Pause menu: dims the frozen scene, offers Resume and Restart."""
+    """Pause menu: Resume, Restart, or back to the difficulty selector."""
     draw_fade(surface, 150)
-    panel = pygame.Rect(100, 230, WINDOW_WIDTH - 200, 250)
+    panel = pygame.Rect(100, 220, WINDOW_WIDTH - 200, 300)
     pygame.draw.rect(surface, (255, 255, 255, 235), panel,
                      border_radius=24)
 
     draw_text(surface, "PAUSED", font_cache.get(40, bold=True),
-              UI_TEXT_COLOR, center=(WINDOW_WIDTH / 2, 280))
+              UI_TEXT_COLOR, center=(WINDOW_WIDTH / 2, 270))
 
-    resume = Button(pygame.Rect(WINDOW_WIDTH / 2 - 90, 320, 180, 54),
+    resume = Button(pygame.Rect(WINDOW_WIDTH / 2 - 90, 310, 180, 54),
                     "RESUME", "resume")
     resume.draw(surface, font_cache, mouse_pos)
-    restart = Button(pygame.Rect(WINDOW_WIDTH / 2 - 90, 386, 180, 54),
+    restart = Button(pygame.Rect(WINDOW_WIDTH / 2 - 90, 376, 180, 54),
                      "RESTART", "restart")
     restart.draw(surface, font_cache, mouse_pos)
-    return [resume, restart]
+    menu = Button(pygame.Rect(WINDOW_WIDTH / 2 - 90, 442, 180, 54),
+                  "MENU", "menu")
+    menu.draw(surface, font_cache, mouse_pos)
+    return [resume, restart, menu]
 
 
 def draw_mute_button(surface: pygame.Surface, font_cache: FontCache,

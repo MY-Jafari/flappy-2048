@@ -30,15 +30,14 @@ from game_logic import merge_numbers, speed_at
 from obstacle import Obstacle, spawn_obstacle
 from player import Player
 from settings import (
-    BADGE_SIZE, BASE_SPEED, BEST_SCORE_PATH, CAPTION, COLUMN_SPACING,
-    COLUMN_WIDTH, DEATH_ANIM_TIME, FPS, GAP_HEIGHT, GAP_MARGIN, GRAVITY,
-    JUMP_VELOCITY, MAX_FALL_SPEED, MAX_SPEED, MERGE_PULSE_TIME, PLAYER_SIZE,
-    PLAYER_X, RESTART_COOLDOWN, SCREEN_FADE_TIME, SPEED_ACCEL, START_VALUE,
-    WIN_ANIM_TIME, WIN_VALUE, WINDOW_HEIGHT, WINDOW_WIDTH,
+    BADGE_SIZE, BEST_SCORE_PATH, CAPTION, COLUMN_WIDTH, DEATH_ANIM_TIME,
+    DIFFICULTIES, FPS, GAP_MARGIN, MAX_FALL_SPEED, MAX_SPEED,
+    MERGE_PULSE_TIME, PLAYER_X, RESTART_COOLDOWN, SCREEN_FADE_TIME,
+    START_VALUE, WIN_ANIM_TIME, WIN_VALUE, WINDOW_HEIGHT, WINDOW_WIDTH,
 )
 from sound import SoundManager
-from storage import (load_best_score, load_muted, set_muted,
-                     update_best_score)
+from storage import (load_best_scores, load_level, load_muted, set_level,
+                     set_muted, update_best_score)
 
 
 class State(enum.Enum):
@@ -71,7 +70,8 @@ class Game:
         # The storage path is injectable so tests (and future ports) can
         # run against an isolated state file.
         self.best_path = best_path
-        self.best = load_best_score(self.best_path)
+        self.best = load_best_scores(self.best_path)   # per-level dict
+        self.level = load_level(self.best_path)
         self.muted = load_muted(self.best_path)
         self.sound.muted = self.muted
         self.mouse_pos = (0, 0)
@@ -89,8 +89,9 @@ class Game:
 
     def reset_run(self) -> None:
         """Reset everything for a fresh run (still keeps state/state_time)."""
+        self.diff = DIFFICULTIES[self.level]   # parameters of this level
         self.player = Player(PLAYER_X, WINDOW_HEIGHT * 0.45,
-                             PLAYER_SIZE, START_VALUE)
+                             self.diff["player_size"], START_VALUE)
         self.obstacles = []
         self.distance = 0.0
         self.distance_since_spawn = 0.0
@@ -119,7 +120,7 @@ class Game:
     def _primary_action(self) -> None:
         """Jump (playing) or advance the current screen."""
         if self.state is State.PLAYING:
-            self.player.jump(JUMP_VELOCITY)
+            self.player.jump(self.diff["jump_velocity"])
             self.sound.play_jump()
         elif self.state is State.PAUSED:
             self.state = State.PLAYING  # space also resumes
@@ -170,12 +171,21 @@ class Game:
                             self.state = State.PLAYING
                         elif button.action == "restart":
                             self._start_run()
+                        elif button.action == "menu":
+                            self._to_menu()
                         return
                 if self.state is State.PLAYING:
-                    self.player.jump(JUMP_VELOCITY)
+                    self.player.jump(self.diff["jump_velocity"])
                     self.sound.play_jump()
             elif self.state is State.START:
-                # Clicking anywhere on the title screen starts the game.
+                for button in self.screen_buttons:
+                    if button.hit(event.pos) and \
+                            button.action.startswith("level:"):
+                        self._set_level(button.action[len("level:"):])
+                        self._start_run()
+                        return
+                # Clicking anywhere else on the title screen starts the
+                # game with the currently selected difficulty.
                 self._start_run()
             elif self.state in (State.GAME_OVER, State.WIN):
                 if self.state_time >= RESTART_COOLDOWN:
@@ -200,6 +210,19 @@ class Game:
         self.sound.muted = self.muted
         set_muted(self.muted, self.best_path)
 
+    def _set_level(self, level: str) -> None:
+        """Switch difficulty and remember the choice for next launch."""
+        if level not in DIFFICULTIES:
+            return
+        self.level = level
+        set_level(level, self.best_path)
+
+    def _to_menu(self) -> None:
+        """Return to the start screen (from the pause menu)."""
+        self.reset_run()
+        self.state = State.START
+        self.state_time = 0.0
+
     def _type_cheat_digit(self, digit: str) -> None:
         """Hidden cheat: typing 2048 (playing or paused) jumps to the win."""
         if self.state not in (State.PLAYING, State.PAUSED):
@@ -220,21 +243,24 @@ class Game:
     def _die(self) -> None:
         self.state = State.DYING
         self.state_time = 0.0
-        self.best = update_best_score(self.player.value, self.best_path)
+        self.best[self.level] = update_best_score(
+            self.player.value, self.level, self.best_path)
         self.sound.play_hit()
 
     def _win(self) -> None:
         self.state = State.WINNING
         self.state_time = 0.0
         self.confetti = ui.Confetti(90, self.rng)
-        self.best = update_best_score(self.player.value, self.best_path)
+        self.best[self.level] = update_best_score(
+            self.player.value, self.level, self.best_path)
         self.sound.play_win()
 
     def _save_progress(self) -> None:
         """Persist the best score even if the player quits mid-run."""
         if self.state in (State.PLAYING, State.PAUSED, State.DYING,
                           State.WINNING):
-            self.best = update_best_score(self.player.value, self.best_path)
+            self.best[self.level] = update_best_score(
+                self.player.value, self.level, self.best_path)
 
     # ------------------------------------------------------------------
     # Update
@@ -264,19 +290,19 @@ class Game:
                 self.state_time = 0.0
 
     def _update_playing(self, dt: float) -> None:
-        self.speed = speed_at(self.distance, BASE_SPEED, SPEED_ACCEL,
-                              MAX_SPEED)
+        self.speed = speed_at(self.distance, self.diff["base_speed"],
+                              self.diff["speed_accel"], MAX_SPEED)
         self.distance += self.speed * dt
 
-        self.player.update(dt, GRAVITY, MAX_FALL_SPEED)
+        self.player.update(dt, self.diff["gravity"], MAX_FALL_SPEED)
 
         # Spawn a new column once enough distance has been covered.
         self.distance_since_spawn += self.speed * dt
-        if self.distance_since_spawn >= COLUMN_SPACING:
-            self.distance_since_spawn -= COLUMN_SPACING
+        if self.distance_since_spawn >= self.diff["column_spacing"]:
+            self.distance_since_spawn -= self.diff["column_spacing"]
             self.obstacles.append(spawn_obstacle(
                 self.rng, self.player.value, WINDOW_WIDTH, WINDOW_HEIGHT,
-                GAP_HEIGHT, COLUMN_WIDTH, GAP_MARGIN))
+                self.diff["gap_height"], COLUMN_WIDTH, GAP_MARGIN))
 
         for obstacle in self.obstacles:
             obstacle.update(dt, self.speed)
@@ -343,24 +369,25 @@ class Game:
             if self.state in (State.PLAYING, State.PAUSED, State.DYING,
                               State.WINNING):
                 ui.draw_hud(self.screen, self.fonts, self.player.value,
-                            self.best)
+                            self.best[self.level])
                 ui.draw_merge_popups(self.screen, self.fonts, self.popups)
 
         if self.state is State.START:
             self.screen_buttons = ui.draw_start_screen(
-                self.screen, self.fonts, self.mouse_pos, self.best)
+                self.screen, self.fonts, self.mouse_pos, self.level,
+                self.best)
         elif self.state is State.GAME_OVER:
             fade = min(self.state_time / SCREEN_FADE_TIME, 1.0)
             self.screen_buttons = ui.draw_game_over_screen(
                 self.screen, self.fonts, self.mouse_pos, self.player.value,
-                self.best, fade)
+                self.best[self.level], fade)
         elif self.state in (State.WINNING, State.WIN):
             if self.confetti is not None:
                 self.confetti.draw(self.screen)
             fade = min(self.state_time / SCREEN_FADE_TIME, 1.0)
             self.screen_buttons = ui.draw_win_screen(
                 self.screen, self.fonts, self.mouse_pos, self.player.value,
-                self.best, fade)
+                self.best[self.level], fade)
         elif self.state is State.PLAYING:
             self.screen_buttons = [ui.draw_mute_button(
                 self.screen, self.fonts, self.muted, self.mouse_pos)]
@@ -385,7 +412,7 @@ def selftest() -> None:
         game._update(1 / 60)
         game._draw()
         if game.state is State.PLAYING:
-            game.player.jump(JUMP_VELOCITY)  # keep it alive-ish
+            game.player.jump(game.diff["jump_velocity"])  # keep it alive-ish
     assert game.state in (State.PLAYING, State.GAME_OVER, State.WIN,
                           State.DYING, State.WINNING)
     print("selftest OK - no crashes across ~20s of gameplay")

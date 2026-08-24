@@ -17,12 +17,12 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 from main import Game, State            # noqa: E402  (needs env vars first)
 from obstacle import Obstacle           # noqa: E402
 from settings import (                  # noqa: E402
-    COLUMN_SPACING, COLUMN_WIDTH, GAP_HEIGHT, JUMP_VELOCITY,
+    DIFFICULTIES, COLUMN_SPACING, COLUMN_WIDTH, GAP_HEIGHT, JUMP_VELOCITY,
     RESTART_COOLDOWN, START_VALUE, WIN_ANIM_TIME, WIN_VALUE,
     WINDOW_HEIGHT,
 )
 from storage import (                   # noqa: E402
-    load_best_score, load_muted, save_best_score, set_muted,
+    load_best_scores, load_level, load_muted, set_level, set_muted,
     update_best_score,
 )
 
@@ -142,7 +142,8 @@ class GameSmokeTests(unittest.TestCase):
         self.game.player.value = 64
         self.game.player.y = WINDOW_HEIGHT + 200
         self.step()
-        self.assertEqual(load_best_score(self.best_path), 64)
+        bests = load_best_scores(self.best_path)
+        self.assertEqual(bests["medium"], 64)  # default level is medium
 
     # -- pause -----------------------------------------------------------
 
@@ -207,6 +208,55 @@ class GameSmokeTests(unittest.TestCase):
             self.press_key(key)
         self.assertEqual(self.game.player.value, START_VALUE)
 
+    # -- difficulty levels -----------------------------------------------
+
+    def test_select_level_changes_physics(self):
+        self.game._set_level("hard")
+        self.game._start_run()
+        self.assertEqual(self.game.diff, DIFFICULTIES["hard"])
+        self.assertEqual(self.game.player.size,
+                         DIFFICULTIES["hard"]["player_size"])
+        self.game._primary_action()
+        self.assertEqual(self.game.player.vy,
+                         DIFFICULTIES["hard"]["jump_velocity"])
+
+    def test_level_choice_persists(self):
+        self.game._set_level("easy")
+        self.assertEqual(load_level(self.game.best_path), "easy")
+        self.game._set_level("hard")
+        self.assertEqual(load_level(self.game.best_path), "hard")
+
+    def test_per_level_best_isolation(self):
+        self.game._set_level("easy")
+        self.game._start_run()
+        self.game.player.value = 64
+        self.game.player.y = WINDOW_HEIGHT + 200
+        self.step()
+        bests = load_best_scores(self.game.best_path)
+        self.assertEqual(bests["easy"], 64)
+        self.assertEqual(bests["medium"], 0)
+        self.assertEqual(bests["hard"], 0)
+
+    def test_start_screen_level_button_starts_game(self):
+        self.game._draw()  # populate screen_buttons while in START state
+        easy = next(b for b in self.game.screen_buttons
+                    if b.action == "level:easy")
+        self.game._handle_event(pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN, button=1, pos=easy.rect.center))
+        self.assertIs(self.game.state, State.PLAYING)
+        self.assertEqual(self.game.level, "easy")
+
+    def test_menu_from_pause_returns_to_start(self):
+        self.game._start_run()
+        self.press_key(pygame.K_p)
+        self.game._draw()  # populate pause menu buttons
+        menu = next(b for b in self.game.screen_buttons
+                    if b.action == "menu")
+        self.game._handle_event(pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN, button=1, pos=menu.rect.center))
+        self.assertIs(self.game.state, State.START)
+        self.assertEqual(self.game.obstacles, [])
+
 
 class StorageTests(unittest.TestCase):
     def setUp(self):
@@ -218,22 +268,43 @@ class StorageTests(unittest.TestCase):
         if os.path.exists(self.path):
             os.unlink(self.path)
 
-    def test_roundtrip(self):
-        save_best_score(128, self.path)
-        self.assertEqual(load_best_score(self.path), 128)
+    def test_best_scores_per_level(self):
+        update_best_score(64, "easy", self.path)
+        update_best_score(128, "hard", self.path)
+        self.assertEqual(load_best_scores(self.path),
+                         {"easy": 64, "medium": 0, "hard": 128})
 
     def test_update_keeps_max(self):
-        save_best_score(64, self.path)
-        self.assertEqual(update_best_score(32, self.path), 64)
-        self.assertEqual(update_best_score(256, self.path), 256)
+        update_best_score(64, "medium", self.path)
+        self.assertEqual(update_best_score(32, "medium", self.path), 64)
+        self.assertEqual(update_best_score(256, "medium", self.path), 256)
 
-    def test_missing_file_returns_default(self):
-        self.assertEqual(load_best_score(self.path + ".nope"), 0)
+    def test_missing_file_returns_defaults(self):
+        self.assertEqual(load_best_scores(self.path + ".nope"),
+                         {"easy": 0, "medium": 0, "hard": 0})
+        self.assertEqual(load_level(self.path + ".nope"), "medium")
+        self.assertFalse(load_muted(self.path + ".nope"))
 
-    def test_corrupt_file_returns_default(self):
+    def test_corrupt_file_returns_defaults(self):
         with open(self.path, "w", encoding="utf-8") as fh:
             fh.write("not json {")
-        self.assertEqual(load_best_score(self.path), 0)
+        self.assertEqual(load_best_scores(self.path),
+                         {"easy": 0, "medium": 0, "hard": 0})
+
+    def test_legacy_file_migrates_to_medium(self):
+        with open(self.path, "w", encoding="utf-8") as fh:
+            fh.write('{"best": 2048, "muted": true}')
+        bests = load_best_scores(self.path)
+        self.assertEqual(bests["medium"], 2048)
+        self.assertEqual(bests["easy"], 0)
+        self.assertTrue(load_muted(self.path))
+
+    def test_level_roundtrip(self):
+        self.assertEqual(load_level(self.path), "medium")
+        set_level("hard", self.path)
+        self.assertEqual(load_level(self.path), "hard")
+        set_level("nope", self.path)  # invalid value falls back to default
+        self.assertEqual(load_level(self.path), "medium")
 
     def test_muted_roundtrip(self):
         self.assertFalse(load_muted(self.path))
@@ -244,8 +315,8 @@ class StorageTests(unittest.TestCase):
 
     def test_update_best_preserves_muted(self):
         set_muted(True, self.path)
-        update_best_score(64, self.path)
-        self.assertEqual(load_best_score(self.path), 64)
+        update_best_score(64, "medium", self.path)
+        self.assertEqual(load_best_scores(self.path)["medium"], 64)
         self.assertTrue(load_muted(self.path))
 
 

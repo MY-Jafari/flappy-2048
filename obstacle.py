@@ -28,7 +28,6 @@ class Obstacle:
         self.width = width
         self.number = number          # number shown on the badge
         self.merged = False           # already merged with the player?
-        self.passed = False           # already flown past (for scoring cues)
         self.world_height = world_height
 
     # -- geometry ---------------------------------------------------------

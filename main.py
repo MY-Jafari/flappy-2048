@@ -402,11 +402,18 @@ class Game:
 
 
 def selftest() -> None:
-    """Headless sanity run: exercises states without a visible window."""
+    """Headless sanity run: exercises states without a visible window.
+
+    Uses a temporary best-score file so the player's real save data is
+    never touched.
+    """
     import os
+    import tempfile
     os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
-    game = Game()
+    tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+    tmp.close()
+    game = Game(best_path=tmp.name)
     game._start_run()
     for _ in range(1200):  # ~20 seconds at 60fps
         game._update(1 / 60)
@@ -415,6 +422,7 @@ def selftest() -> None:
             game.player.jump(game.diff["jump_velocity"])  # keep it alive-ish
     assert game.state in (State.PLAYING, State.GAME_OVER, State.WIN,
                           State.DYING, State.WINNING)
+    os.unlink(tmp.name)
     print("selftest OK - no crashes across ~20s of gameplay")
     pygame.quit()
 

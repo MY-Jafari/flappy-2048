@@ -124,6 +124,4 @@ def ease_out_back(t: float) -> float:
     return 1.0 + c3 * (t - 1.0) ** 3 + c1 * (t - 1.0) ** 2
 
 
-def choice(rng: random.Random, items: Sequence) -> object:
-    """rng.choice wrapper (kept so the port surface is obvious)."""
-    return rng.choice(items)
+

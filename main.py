@@ -1,0 +1,322 @@
+"""
+main.py — Flappy 2048 entry point and game loop.
+
+Runs `python main.py` to play.
+
+This module owns the pygame event loop and the state machine
+(START -> PLAYING -> DYING/GAME_OVER and PLAYING -> WINNING/WIN),
+and wires the pure logic modules (player, obstacle, game_logic) to
+the rendering layer (ui) and the sound manager.
+
+Run a headless self-check with:
+    python main.py --selftest
+"""
+
+from __future__ import annotations
+
+import enum
+import math
+import random
+import sys
+
+import pygame
+
+import ui
+from game_logic import merge_numbers, speed_at
+from obstacle import Obstacle, spawn_obstacle
+from player import Player
+from settings import (
+    BADGE_SIZE, BASE_SPEED, BEST_SCORE_PATH, CAPTION, COLUMN_SPACING,
+    COLUMN_WIDTH, DEATH_ANIM_TIME, FPS, GAP_HEIGHT, GAP_MARGIN, GRAVITY,
+    JUMP_VELOCITY, MAX_FALL_SPEED, MAX_SPEED, MERGE_PULSE_TIME, PLAYER_SIZE,
+    PLAYER_X, RESTART_COOLDOWN, SCREEN_FADE_TIME, SPEED_ACCEL, START_VALUE,
+    WIN_ANIM_TIME, WIN_VALUE, WINDOW_HEIGHT, WINDOW_WIDTH,
+)
+from sound import SoundManager
+from storage import load_best_score, update_best_score
+
+
+class State(enum.Enum):
+    START = enum.auto()
+    PLAYING = enum.auto()
+    DYING = enum.auto()      # game-over animation playing
+    WINNING = enum.auto()    # confetti celebration playing
+    GAME_OVER = enum.auto()
+    WIN = enum.auto()
+
+
+class Game:
+    """The whole game: state machine, update loop and rendering."""
+
+    def __init__(self) -> None:
+        pygame.init()
+        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+        pygame.display.set_caption(CAPTION)
+        self.clock = pygame.time.Clock()
+
+        self.fonts = ui.FontCache()
+        self.sound = SoundManager()
+        self.rng = random.Random()
+
+        self.sky = ui.make_sky(WINDOW_WIDTH, WINDOW_HEIGHT)
+        self.clouds = ui.Clouds(self.rng)
+        self.confetti = None
+
+        self.best = load_best_score()
+        self.best_path = BEST_SCORE_PATH
+        self.mouse_pos = (0, 0)
+        self.screen_buttons = []
+        self.popups = []
+
+        self.state = State.START
+        self.state_time = 0.0
+        self.reset_run()
+
+    # ------------------------------------------------------------------
+    # Run lifecycle
+    # ------------------------------------------------------------------
+
+    def reset_run(self) -> None:
+        """Reset everything for a fresh run (still keeps state/state_time)."""
+        self.player = Player(PLAYER_X, WINDOW_HEIGHT * 0.45,
+                             PLAYER_SIZE, START_VALUE)
+        self.obstacles = []
+        self.distance = 0.0
+        self.distance_since_spawn = 0.0
+        self.popups = []
+
+    def run(self) -> None:
+        running = True
+        while running:
+            dt = min(self.clock.tick(FPS) / 1000.0, 0.05)  # clamp big jumps
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self._save_progress()
+                    running = False
+                else:
+                    self._handle_event(event)
+            self._update(dt)
+            self._draw()
+            pygame.display.flip()
+        pygame.quit()
+
+    # ------------------------------------------------------------------
+    # Input
+    # ------------------------------------------------------------------
+
+    def _primary_action(self) -> None:
+        """Jump (playing) or advance the current screen."""
+        if self.state is State.PLAYING:
+            self.player.jump(JUMP_VELOCITY)
+            self.sound.play_jump()
+        elif self.state is State.START:
+            self._start_run()
+        elif self.state in (State.GAME_OVER, State.WIN):
+            if self.state_time >= RESTART_COOLDOWN:
+                self._start_run()
+
+    def _handle_event(self, event: pygame.event.Event) -> None:
+        if event.type == pygame.KEYDOWN:
+            if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                # The QUIT handler saves progress before exiting.
+                pygame.event.post(pygame.event.Event(pygame.QUIT))
+            elif event.key in (pygame.K_SPACE, pygame.K_RETURN,
+                               pygame.K_UP, pygame.K_w):
+                self._primary_action()
+        elif event.type == pygame.MOUSEMOTION:
+            self.mouse_pos = event.pos
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.state is State.PLAYING:
+                self.player.jump(JUMP_VELOCITY)
+                self.sound.play_jump()
+            elif self.state is State.START:
+                # Clicking anywhere on the title screen starts the game.
+                self._start_run()
+            elif self.state in (State.GAME_OVER, State.WIN):
+                if self.state_time >= RESTART_COOLDOWN:
+                    for button in self.screen_buttons:
+                        if button.hit(event.pos):
+                            if button.action == "restart":
+                                self._start_run()
+                            break
+
+    # ------------------------------------------------------------------
+    # State transitions
+    # ------------------------------------------------------------------
+
+    def _start_run(self) -> None:
+        self.reset_run()
+        self.state = State.PLAYING
+        self.state_time = 0.0
+
+    def _die(self) -> None:
+        self.state = State.DYING
+        self.state_time = 0.0
+        self.best = update_best_score(self.player.value, self.best_path)
+        self.sound.play_hit()
+
+    def _win(self) -> None:
+        self.state = State.WINNING
+        self.state_time = 0.0
+        self.confetti = ui.Confetti(90, self.rng)
+        self.best = update_best_score(self.player.value, self.best_path)
+        self.sound.play_win()
+
+    def _save_progress(self) -> None:
+        """Persist the best score even if the player quits mid-run."""
+        if self.state in (State.PLAYING, State.DYING, State.WINNING):
+            self.best = update_best_score(self.player.value, self.best_path)
+
+    # ------------------------------------------------------------------
+    # Update
+    # ------------------------------------------------------------------
+
+    def _update(self, dt: float) -> None:
+        self.state_time += dt
+        self.clouds.update(dt)
+
+        if self.popups:
+            self.popups = [(t, x, y, ttl - dt, total)
+                           for t, x, y, ttl, total in self.popups
+                           if ttl - dt > 0]
+
+        if self.state is State.PLAYING:
+            self._update_playing(dt)
+        elif self.state is State.DYING:
+            if self.state_time >= DEATH_ANIM_TIME:
+                self.state = State.GAME_OVER
+                self.state_time = 0.0
+        elif self.state is State.WINNING:
+            self.confetti.update(dt)
+            if self.state_time >= WIN_ANIM_TIME:
+                self.state = State.WIN
+                self.state_time = 0.0
+
+    def _update_playing(self, dt: float) -> None:
+        self.speed = speed_at(self.distance, BASE_SPEED, SPEED_ACCEL,
+                              MAX_SPEED)
+        self.distance += self.speed * dt
+
+        self.player.update(dt, GRAVITY, MAX_FALL_SPEED)
+
+        # Spawn a new column once enough distance has been covered.
+        self.distance_since_spawn += self.speed * dt
+        if self.distance_since_spawn >= COLUMN_SPACING:
+            self.distance_since_spawn -= COLUMN_SPACING
+            self.obstacles.append(spawn_obstacle(
+                self.rng, self.player.value, WINDOW_WIDTH, WINDOW_HEIGHT,
+                GAP_HEIGHT, COLUMN_WIDTH, GAP_MARGIN))
+
+        for obstacle in self.obstacles:
+            obstacle.update(dt, self.speed)
+
+        player_rect = self.player.rect()
+        for obstacle in self.obstacles:
+            if obstacle.hits_body(player_rect):
+                self._die()
+                return
+            if not obstacle.merged and obstacle.hits_badge(player_rect,
+                                                           BADGE_SIZE):
+                self._merge(obstacle)
+
+        # Out of bounds (floor / ceiling) also ends the run.
+        if self.player.top < 0 or self.player.bottom > WINDOW_HEIGHT:
+            self._die()
+            return
+
+        if self.player.value >= WIN_VALUE:
+            self._win()
+            return
+
+        self.obstacles = [ob for ob in self.obstacles if not ob.off_screen()]
+
+    def _merge(self, obstacle: Obstacle) -> None:
+        """2048-style merge: equal values add up (2+2=4)."""
+        merged = merge_numbers(self.player.value, obstacle.number)
+        if merged is None:
+            return  # a "dud" badge (smaller power of two) — nothing happens
+        self.player.merge_with(obstacle.number, MERGE_PULSE_TIME)
+        obstacle.merged = True
+        self.sound.play_merge()
+        self.popups.append((f"+{obstacle.number}",
+                            self.player.x + self.player.size / 2.0,
+                            self.player.top - 12, 0.9, 0.9))
+
+    # ------------------------------------------------------------------
+    # Drawing
+    # ------------------------------------------------------------------
+
+    def _draw(self) -> None:
+        self.screen.blit(self.sky, (0, 0))
+        self.clouds.draw(self.screen)
+
+        in_play = self.state in (State.PLAYING, State.DYING, State.WINNING,
+                                 State.GAME_OVER, State.WIN)
+        if in_play:
+            for obstacle in self.obstacles:
+                ui.draw_obstacle(self.screen, obstacle, self.fonts)
+
+            angle_offset = 0.0
+            alpha = 255
+            shake = 0.0
+            if self.state is State.DYING:
+                progress = min(self.state_time / DEATH_ANIM_TIME, 1.0)
+                angle_offset = self.state_time * 540.0        # spin
+                shake = 9.0 * (1.0 - progress) * math.sin(progress * 45.0)
+                if progress > 0.6:
+                    alpha = int(255 * (1.0 - (progress - 0.6) / 0.4))
+            ui.draw_player(self.screen, self.player, self.fonts,
+                           angle_offset=angle_offset, alpha=alpha,
+                           offset_x=shake)
+
+            if self.state in (State.PLAYING, State.DYING, State.WINNING):
+                ui.draw_hud(self.screen, self.fonts, self.player.value,
+                            self.best)
+                ui.draw_merge_popups(self.screen, self.fonts, self.popups)
+
+        if self.state is State.START:
+            self.screen_buttons = ui.draw_start_screen(
+                self.screen, self.fonts, self.mouse_pos, self.best)
+        elif self.state is State.GAME_OVER:
+            fade = min(self.state_time / SCREEN_FADE_TIME, 1.0)
+            self.screen_buttons = ui.draw_game_over_screen(
+                self.screen, self.fonts, self.mouse_pos, self.player.value,
+                self.best, fade)
+        elif self.state in (State.WINNING, State.WIN):
+            if self.confetti is not None:
+                self.confetti.draw(self.screen)
+            fade = min(self.state_time / SCREEN_FADE_TIME, 1.0)
+            self.screen_buttons = ui.draw_win_screen(
+                self.screen, self.fonts, self.mouse_pos, self.player.value,
+                self.best, fade)
+
+
+
+
+def selftest() -> None:
+    """Headless sanity run: exercises states without a visible window."""
+    import os
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+    game = Game()
+    game._start_run()
+    for _ in range(1200):  # ~20 seconds at 60fps
+        game._update(1 / 60)
+        game._draw()
+        if game.state is State.PLAYING:
+            game.player.jump(JUMP_VELOCITY)  # keep it alive-ish
+    assert game.state in (State.PLAYING, State.GAME_OVER, State.WIN,
+                          State.DYING, State.WINNING)
+    print("selftest OK - no crashes across ~20s of gameplay")
+    pygame.quit()
+
+
+def main() -> None:
+    if "--selftest" in sys.argv:
+        selftest()
+        return
+    Game().run()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,6 +1,22 @@
 # Game runtime data (best score is written here at runtime)
 best_score.json
 
+# Freebuff tool directory
+.freebuff/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.log
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

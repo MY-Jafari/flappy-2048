@@ -4,6 +4,8 @@ A 2D arcade game that mixes **Flappy Bird** mechanics with **2048**
 scoring: hop a numbered cube through the gaps of scrolling columns,
 merge equal numbers, and reach **2048** to win.
 
+![CI](https://github.com/MY-Jafari/flappy-2048/actions/workflows/ci.yml/badge.svg)
+
 <div align="center">
   <img src="screenshots/start.png" width="230" alt="Start screen with difficulty selector">
   <img src="screenshots/gameplay.png" width="230" alt="Gameplay: cube approaching a matching badge">

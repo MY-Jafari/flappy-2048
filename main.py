@@ -54,7 +54,7 @@ class State(enum.Enum):
 class Game:
     """The whole game: state machine, update loop and rendering."""
 
-    def __init__(self) -> None:
+    def __init__(self, best_path: str = BEST_SCORE_PATH) -> None:
         pygame.init()
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
         pygame.display.set_caption(CAPTION)
@@ -68,8 +68,10 @@ class Game:
         self.clouds = ui.Clouds(self.rng)
         self.confetti = None
 
-        self.best = load_best_score()
-        self.best_path = BEST_SCORE_PATH
+        # The storage path is injectable so tests (and future ports) can
+        # run against an isolated state file.
+        self.best_path = best_path
+        self.best = load_best_score(self.best_path)
         self.muted = load_muted(self.best_path)
         self.sound.muted = self.muted
         self.mouse_pos = (0, 0)

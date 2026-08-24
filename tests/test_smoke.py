@@ -34,8 +34,7 @@ class GameSmokeTests(unittest.TestCase):
         tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
         tmp.close()
         self.best_path = tmp.name
-        self.game = Game()
-        self.game.best_path = self.best_path
+        self.game = Game(best_path=self.best_path)
 
     def tearDown(self):
         if os.path.exists(self.best_path):

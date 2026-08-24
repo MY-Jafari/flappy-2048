@@ -121,35 +121,39 @@ DEFAULT_DIFFICULTY = "medium"
 DIFFICULTY_ORDER = ["easy", "medium", "hard"]
 
 DIFFICULTIES = {
+    # EASY: really easy — huge gaps, slow scroll, floaty high jumps,
+    # lots of breathing room between columns.
     "easy": {
         "label": "EASY",
         "player_size": 52,
-        "gravity": 1350.0,
-        "jump_velocity": -600.0,
-        "gap_height": 225.0,
-        "base_speed": 130.0,
-        "speed_accel": 0.0035,
-        "column_spacing": 260.0,
+        "gravity": 1300.0,
+        "jump_velocity": -580.0,
+        "gap_height": 246.0,
+        "base_speed": 115.0,
+        "speed_accel": 0.0030,
+        "column_spacing": 280.0,
     },
     "medium": {
         "label": "MEDIUM",
-        # Medium matches the original values.
+        # Medium: balanced, slightly more forgiving than the original.
         "player_size": PLAYER_SIZE,
         "gravity": GRAVITY,
         "jump_velocity": JUMP_VELOCITY,
-        "gap_height": GAP_HEIGHT,
-        "base_speed": BASE_SPEED,
-        "speed_accel": SPEED_ACCEL,
-        "column_spacing": COLUMN_SPACING,
+        "gap_height": 215.0,
+        "base_speed": 140.0,
+        "speed_accel": 0.0038,
+        "column_spacing": 250.0,
     },
     "hard": {
         "label": "HARD",
-        "player_size": 62,
-        "gravity": 1650.0,
-        "jump_velocity": -520.0,
-        "gap_height": 185.0,
+        # HARD: tight gaps, fast columns, heavy cube and weaker jumps —
+        # challenging, but the bot should still sometimes win.
+        "player_size": 60,
+        "gravity": 1600.0,
+        "jump_velocity": -530.0,
+        "gap_height": 190.0,
         "base_speed": 170.0,
-        "speed_accel": 0.0060,
+        "speed_accel": 0.0055,
         "column_spacing": 240.0,
     },
 }

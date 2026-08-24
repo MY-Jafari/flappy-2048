@@ -4,9 +4,13 @@ main.py — Flappy 2048 entry point and game loop.
 Runs `python main.py` to play.
 
 This module owns the pygame event loop and the state machine
-(START -> PLAYING -> DYING/GAME_OVER and PLAYING -> WINNING/WIN),
-and wires the pure logic modules (player, obstacle, game_logic) to
-the rendering layer (ui) and the sound manager.
+(START -> PLAYING -> DYING/GAME_OVER, PLAYING -> WINNING/WIN and
+PLAYING <-> PAUSED), and wires the pure logic modules (player,
+obstacle, game_logic) to the rendering layer (ui) and the sound
+manager.
+
+Hidden cheat: while playing (or paused) type "2048" on the number
+row to jump straight to the win screen.
 
 Run a headless self-check with:
     python main.py --selftest
@@ -33,12 +37,14 @@ from settings import (
     WIN_ANIM_TIME, WIN_VALUE, WINDOW_HEIGHT, WINDOW_WIDTH,
 )
 from sound import SoundManager
-from storage import load_best_score, update_best_score
+from storage import (load_best_score, load_muted, set_muted,
+                     update_best_score)
 
 
 class State(enum.Enum):
     START = enum.auto()
     PLAYING = enum.auto()
+    PAUSED = enum.auto()     # game frozen, small menu shown
     DYING = enum.auto()      # game-over animation playing
     WINNING = enum.auto()    # confetti celebration playing
     GAME_OVER = enum.auto()
@@ -64,9 +70,12 @@ class Game:
 
         self.best = load_best_score()
         self.best_path = BEST_SCORE_PATH
+        self.muted = load_muted(self.best_path)
+        self.sound.muted = self.muted
         self.mouse_pos = (0, 0)
         self.screen_buttons = []
         self.popups = []
+        self._cheat = ""
 
         self.state = State.START
         self.state_time = 0.0
@@ -84,6 +93,7 @@ class Game:
         self.distance = 0.0
         self.distance_since_spawn = 0.0
         self.popups = []
+        self._cheat = ""
 
     def run(self) -> None:
         running = True
@@ -109,26 +119,59 @@ class Game:
         if self.state is State.PLAYING:
             self.player.jump(JUMP_VELOCITY)
             self.sound.play_jump()
+        elif self.state is State.PAUSED:
+            self.state = State.PLAYING  # space also resumes
         elif self.state is State.START:
             self._start_run()
         elif self.state in (State.GAME_OVER, State.WIN):
             if self.state_time >= RESTART_COOLDOWN:
                 self._start_run()
 
+    # Digit keys used by the hidden cheat code.
+    DIGIT_KEYS = {
+        pygame.K_0: "0", pygame.K_1: "1", pygame.K_2: "2", pygame.K_3: "3",
+        pygame.K_4: "4", pygame.K_5: "5", pygame.K_6: "6", pygame.K_7: "7",
+        pygame.K_8: "8", pygame.K_9: "9",
+        pygame.K_KP0: "0", pygame.K_KP1: "1", pygame.K_KP2: "2",
+        pygame.K_KP3: "3", pygame.K_KP4: "4", pygame.K_KP5: "5",
+        pygame.K_KP6: "6", pygame.K_KP7: "7", pygame.K_KP8: "8",
+        pygame.K_KP9: "9",
+    }
+
     def _handle_event(self, event: pygame.event.Event) -> None:
         if event.type == pygame.KEYDOWN:
             if event.key in (pygame.K_ESCAPE, pygame.K_q):
                 # The QUIT handler saves progress before exiting.
                 pygame.event.post(pygame.event.Event(pygame.QUIT))
+            elif event.key == pygame.K_p:
+                self._toggle_pause()
+            elif event.key == pygame.K_m:
+                self._toggle_mute()
+            elif event.key in self.DIGIT_KEYS:
+                self._type_cheat_digit(self.DIGIT_KEYS[event.key])
             elif event.key in (pygame.K_SPACE, pygame.K_RETURN,
                                pygame.K_UP, pygame.K_w):
                 self._primary_action()
         elif event.type == pygame.MOUSEMOTION:
             self.mouse_pos = event.pos
-        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        elif event.type == pygame.WINDOWFOCUSLOST:
+            # Auto-pause when the window loses focus (no unfair deaths).
             if self.state is State.PLAYING:
-                self.player.jump(JUMP_VELOCITY)
-                self.sound.play_jump()
+                self.state = State.PAUSED
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.state in (State.PLAYING, State.PAUSED):
+                for button in self.screen_buttons:
+                    if button.hit(event.pos):
+                        if button.action == "mute":
+                            self._toggle_mute()
+                        elif button.action == "resume":
+                            self.state = State.PLAYING
+                        elif button.action == "restart":
+                            self._start_run()
+                        return
+                if self.state is State.PLAYING:
+                    self.player.jump(JUMP_VELOCITY)
+                    self.sound.play_jump()
             elif self.state is State.START:
                 # Clicking anywhere on the title screen starts the game.
                 self._start_run()
@@ -143,6 +186,29 @@ class Game:
     # ------------------------------------------------------------------
     # State transitions
     # ------------------------------------------------------------------
+
+    def _toggle_pause(self) -> None:
+        if self.state is State.PLAYING:
+            self.state = State.PAUSED
+        elif self.state is State.PAUSED:
+            self.state = State.PLAYING
+
+    def _toggle_mute(self) -> None:
+        self.muted = not self.muted
+        self.sound.muted = self.muted
+        set_muted(self.muted, self.best_path)
+
+    def _type_cheat_digit(self, digit: str) -> None:
+        """Hidden cheat: typing 2048 (playing or paused) jumps to the win."""
+        if self.state not in (State.PLAYING, State.PAUSED):
+            return
+        self._cheat = (self._cheat + digit)[-4:]
+        if self._cheat == "2048":
+            self._cheat = ""
+            self.player.value = WIN_VALUE
+            self.popups.append((f"+{WIN_VALUE} CHEAT!",
+                                self.player.x + self.player.size / 2.0,
+                                self.player.top - 12, 1.2, 1.2))
 
     def _start_run(self) -> None:
         self.reset_run()
@@ -164,7 +230,8 @@ class Game:
 
     def _save_progress(self) -> None:
         """Persist the best score even if the player quits mid-run."""
-        if self.state in (State.PLAYING, State.DYING, State.WINNING):
+        if self.state in (State.PLAYING, State.PAUSED, State.DYING,
+                          State.WINNING):
             self.best = update_best_score(self.player.value, self.best_path)
 
     # ------------------------------------------------------------------
@@ -173,6 +240,8 @@ class Game:
 
     def _update(self, dt: float) -> None:
         self.state_time += dt
+        if self.state is State.PAUSED:
+            return  # full pause: scene and clouds stay frozen
         self.clouds.update(dt)
 
         if self.popups:
@@ -250,8 +319,8 @@ class Game:
         self.screen.blit(self.sky, (0, 0))
         self.clouds.draw(self.screen)
 
-        in_play = self.state in (State.PLAYING, State.DYING, State.WINNING,
-                                 State.GAME_OVER, State.WIN)
+        in_play = self.state in (State.PLAYING, State.PAUSED, State.DYING,
+                                 State.WINNING, State.GAME_OVER, State.WIN)
         if in_play:
             for obstacle in self.obstacles:
                 ui.draw_obstacle(self.screen, obstacle, self.fonts)
@@ -269,7 +338,8 @@ class Game:
                            angle_offset=angle_offset, alpha=alpha,
                            offset_x=shake)
 
-            if self.state in (State.PLAYING, State.DYING, State.WINNING):
+            if self.state in (State.PLAYING, State.PAUSED, State.DYING,
+                              State.WINNING):
                 ui.draw_hud(self.screen, self.fonts, self.player.value,
                             self.best)
                 ui.draw_merge_popups(self.screen, self.fonts, self.popups)
@@ -289,6 +359,15 @@ class Game:
             self.screen_buttons = ui.draw_win_screen(
                 self.screen, self.fonts, self.mouse_pos, self.player.value,
                 self.best, fade)
+        elif self.state is State.PLAYING:
+            self.screen_buttons = [ui.draw_mute_button(
+                self.screen, self.fonts, self.muted, self.mouse_pos)]
+        elif self.state is State.PAUSED:
+            pause_buttons = ui.draw_pause_screen(
+                self.screen, self.fonts, self.mouse_pos)
+            mute_button = ui.draw_mute_button(
+                self.screen, self.fonts, self.muted, self.mouse_pos)
+            self.screen_buttons = pause_buttons + [mute_button]
 
 
 

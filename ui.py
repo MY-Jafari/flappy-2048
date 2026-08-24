@@ -423,6 +423,42 @@ def draw_win_screen(surface: pygame.Surface, font_cache: FontCache,
     return [restart]
 
 
+def draw_pause_screen(surface: pygame.Surface, font_cache: FontCache,
+                      mouse_pos: Tuple[int, int]) -> List[Button]:
+    """Pause menu: dims the frozen scene, offers Resume and Restart."""
+    draw_fade(surface, 150)
+    panel = pygame.Rect(100, 230, WINDOW_WIDTH - 200, 250)
+    pygame.draw.rect(surface, (255, 255, 255, 235), panel,
+                     border_radius=24)
+
+    draw_text(surface, "PAUSED", font_cache.get(40, bold=True),
+              UI_TEXT_COLOR, center=(WINDOW_WIDTH / 2, 280))
+
+    resume = Button(pygame.Rect(WINDOW_WIDTH / 2 - 90, 320, 180, 54),
+                    "RESUME", "resume")
+    resume.draw(surface, font_cache, mouse_pos)
+    restart = Button(pygame.Rect(WINDOW_WIDTH / 2 - 90, 386, 180, 54),
+                     "RESTART", "restart")
+    restart.draw(surface, font_cache, mouse_pos)
+    return [resume, restart]
+
+
+def draw_mute_button(surface: pygame.Surface, font_cache: FontCache,
+                     muted: bool, mouse_pos: Tuple[int, int]) -> Button:
+    """Small sound toggle pill in the bottom-right corner."""
+    rect = pygame.Rect(WINDOW_WIDTH - 148, WINDOW_HEIGHT - 50, 134, 38)
+    button = Button(rect, "", "mute")
+    hovered = button.hit(mouse_pos)
+    color = (255, 255, 255, 205) if not hovered else (255, 255, 255, 245)
+    pill = pygame.Surface(rect.size, pygame.SRCALPHA)
+    pygame.draw.rect(pill, color, pill.get_rect(), border_radius=19)
+    surface.blit(pill, rect)
+    label = "SOUND OFF" if muted else "SOUND ON"
+    draw_text(surface, label, font_cache.get(15, bold=True), UI_TEXT_COLOR,
+              center=rect.center)
+    return button
+
+
 def draw_merge_popups(surface: pygame.Surface, font_cache: FontCache,
                       popups: Sequence) -> None:
     """Small '+N' texts that float up and fade after a merge."""

@@ -27,6 +27,9 @@ python main.py
 
 - **Jump:** click / tap / Space (also works with ↑ and W). Works on
   touch screens — no keyboard needed.
+- **Pause:** `P` (the game also pauses automatically when the window
+  loses focus). Resume with `P` or Space.
+- **Mute:** `M` or the **SOUND ON/OFF** pill in the bottom-right corner.
 - **Goal:** fly through the gaps. When your cube touches the **number
   badge** in the middle of a gap, the badge's number merges with yours if
   they are equal (2+2=4, 4+4=8, ...). Your cube's color and number update
@@ -36,9 +39,12 @@ python main.py
 - **Win:** reach **2048** and enjoy the confetti.
 - **Quit:** Esc or Q.
 
-The best score (the biggest number your cube ever reached) is saved in
-`best_score.json` and survives restarts. Difficulty increases over time —
-columns scroll faster and faster, while the gap size stays fair.
+**Hidden cheat code:** while playing (or paused), type `2048` on the
+number row to jump straight to the win screen.
+
+The best score and the mute preference are saved in `best_score.json`
+and survive restarts. Difficulty increases over time — columns scroll
+faster and faster, while the gap size stays fair.
 
 ## Project structure
 

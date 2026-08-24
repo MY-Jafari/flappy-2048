@@ -53,6 +53,7 @@ class SoundManager:
 
     def __init__(self) -> None:
         self.enabled = False
+        self.muted = False
         self._sounds = {}
         try:
             pygame.mixer.init(SAMPLE_RATE, -16, 1, 512)
@@ -68,7 +69,7 @@ class SoundManager:
             self.enabled = False
 
     def play(self, name: str) -> None:
-        if self.enabled and name in self._sounds:
+        if self.enabled and not self.muted and name in self._sounds:
             self._sounds[name].play()
 
     def play_jump(self) -> None:

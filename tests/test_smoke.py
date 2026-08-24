@@ -9,6 +9,8 @@ import os
 import tempfile
 import unittest
 
+import pygame
+
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
@@ -19,7 +21,10 @@ from settings import (                  # noqa: E402
     RESTART_COOLDOWN, START_VALUE, WIN_ANIM_TIME, WIN_VALUE,
     WINDOW_HEIGHT,
 )
-from storage import load_best_score, save_best_score, update_best_score  # noqa: E402
+from storage import (                   # noqa: E402
+    load_best_score, load_muted, save_best_score, set_muted,
+    update_best_score,
+)
 
 DT = 1 / 60
 
@@ -40,6 +45,10 @@ class GameSmokeTests(unittest.TestCase):
         for _ in range(n):
             self.game._update(DT)
             self.game._draw()
+
+    def press_key(self, key):
+        self.game._handle_event(
+            pygame.event.Event(pygame.KEYDOWN, key=key))
 
     # -- basic flow -------------------------------------------------------
 
@@ -136,6 +145,69 @@ class GameSmokeTests(unittest.TestCase):
         self.step()
         self.assertEqual(load_best_score(self.best_path), 64)
 
+    # -- pause -----------------------------------------------------------
+
+    def test_pause_freezes_the_game(self):
+        self.game._start_run()
+        self.press_key(pygame.K_p)
+        self.assertIs(self.game.state, State.PAUSED)
+        y_before = self.game.player.y
+        self.step(5)
+        self.assertEqual(self.game.player.y, y_before)  # physics frozen
+        self.press_key(pygame.K_p)
+        self.assertIs(self.game.state, State.PLAYING)
+
+    def test_space_resumes_pause(self):
+        self.game._start_run()
+        self.press_key(pygame.K_p)
+        self.game._primary_action()
+        self.assertIs(self.game.state, State.PLAYING)
+
+    def test_pause_on_focus_loss(self):
+        self.game._start_run()
+        self.game._handle_event(
+            pygame.event.Event(pygame.WINDOWFOCUSLOST))
+        self.assertIs(self.game.state, State.PAUSED)
+
+    # -- mute ------------------------------------------------------------
+
+    def test_mute_toggle_and_persist(self):
+        self.game._start_run()
+        self.assertFalse(self.game.muted)
+        self.press_key(pygame.K_m)
+        self.assertTrue(self.game.muted)
+        self.assertTrue(self.game.sound.muted)
+        self.assertTrue(load_muted(self.game.best_path))
+        self.press_key(pygame.K_m)
+        self.assertFalse(self.game.muted)
+        self.assertFalse(load_muted(self.game.best_path))
+
+    # -- hidden cheat ----------------------------------------------------
+
+    def test_cheat_2048_wins(self):
+        self.game._start_run()
+        for key in (pygame.K_2, pygame.K_0, pygame.K_4, pygame.K_8):
+            self.press_key(key)
+        self.assertEqual(self.game.player.value, WIN_VALUE)
+        self.step()
+        self.assertIs(self.game.state, State.WINNING)
+
+    def test_cheat_2048_while_paused(self):
+        self.game._start_run()
+        self.press_key(pygame.K_p)
+        for key in (pygame.K_2, pygame.K_0, pygame.K_4, pygame.K_8):
+            self.press_key(key)
+        self.assertEqual(self.game.player.value, WIN_VALUE)
+        self.press_key(pygame.K_p)
+        self.step()
+        self.assertIs(self.game.state, State.WINNING)
+
+    def test_partial_cheat_does_nothing(self):
+        self.game._start_run()
+        for key in (pygame.K_2, pygame.K_0, pygame.K_4):
+            self.press_key(key)
+        self.assertEqual(self.game.player.value, START_VALUE)
+
 
 class StorageTests(unittest.TestCase):
     def setUp(self):
@@ -163,6 +235,19 @@ class StorageTests(unittest.TestCase):
         with open(self.path, "w", encoding="utf-8") as fh:
             fh.write("not json {")
         self.assertEqual(load_best_score(self.path), 0)
+
+    def test_muted_roundtrip(self):
+        self.assertFalse(load_muted(self.path))
+        set_muted(True, self.path)
+        self.assertTrue(load_muted(self.path))
+        set_muted(False, self.path)
+        self.assertFalse(load_muted(self.path))
+
+    def test_update_best_preserves_muted(self):
+        set_muted(True, self.path)
+        update_best_score(64, self.path)
+        self.assertEqual(load_best_score(self.path), 64)
+        self.assertTrue(load_muted(self.path))
 
 
 if __name__ == "__main__":

@@ -1,14 +1,12 @@
 # 🎮 Flappy 2048
 
-A 2D arcade game that mixes **Flappy Bird** mechanics with **2048**
-scoring: hop a numbered cube through the gaps of scrolling columns,
-merge equal numbers, and reach **2048** to win.
+A 2D arcade game that combines **Flappy Bird** mechanics with **2048** scoring. Guide a numbered cube through moving columns, merge matching numbers, and reach **2048** to win.
 
 ![CI](https://github.com/MY-Jafari/flappy-2048/actions/workflows/ci.yml/badge.svg)
 
 <div align="center">
   <img src="screenshots/start.png" width="230" alt="Start screen with difficulty selector">
-  <img src="screenshots/gameplay.png" width="230" alt="Gameplay: cube approaching a matching badge">
+  <img src="screenshots/gameplay.png" width="230" alt="Gameplay">
   <img src="screenshots/gameover.png" width="230" alt="Game over screen">
   <img src="screenshots/win.png" width="230" alt="Win screen with confetti">
 </div>
@@ -19,9 +17,11 @@ merge equal numbers, and reach **2048** to win.
 
 ### معرفی
 
-بازی دوبعدی **Flappy 2048** ترکیبی از مکانیک فلاپیبرد و منطق امتیازدهی ۲۰۴۸ است. بهجای پرنده، یک **مکعب رنگی** داری که روی آن عدد امتیاز فعلی نوشته شده (شروع از ۲). با تپ/کلیک یا کلید Space مکعب میپرد و باید از میان شکاف ستونهای متحرک رد شوی. اگر به **بج عددی** وسط شکاف بخوری و عدد آن با عدد مکعبت برابر باشد، دو عدد مثل ۲۰۴۸ با هم جمع میشوند (۲+۲=۴) و رنگ و عدد مکعب آپدیت میشود. به **۲۰۴۸** برسی، برنده شدهای!
+**Flappy 2048** یک بازی دوبعدی است که مکانیک Flappy Bird را با امتیازدهی ۲۰۴۸ ترکیب می‌کند. به‌جای پرنده، یک **مکعب رنگی** را کنترل می‌کنید که عدد فعلی روی آن نمایش داده می‌شود و بازی را با عدد ۲ شروع می‌کند.
 
-بازی با **pygame-ce** (نسخهی Community Edition فعال و بهروز پکیج pygame) ساخته شده و هستهی منطق آن (فیزیک، تولید ستونها، ترکیب اعداد) کاملاً **مستقل از pygame** است — یعنی لایهی رندر تنها جایی است که به pygame وابسته است و پورت آینده به HTML5/JavaScript بهراحتی انجام میشود.
+با کلیک، لمس یا فشردن کلیدهای `Space`، `↑` و `W` مکعب به سمت بالا می‌پرد. هدف این است که از شکاف ستون‌های متحرک عبور کنید. اگر عدد روی نشانِ داخل شکاف با عدد مکعب برابر باشد، دو عدد مانند بازی ۲۰۴۸ با هم ترکیب می‌شوند؛ برای مثال `۲ + ۲ = ۴`. با رسیدن به عدد **۲۰۴۸** برنده می‌شوید.
+
+بازی با **pygame-ce** ساخته شده است. منطق اصلی بازی، مانند فیزیک، تولید ستون‌ها و ترکیب اعداد، مستقل از pygame نگه داشته شده و pygame فقط در لایه‌ی نمایش و صدا استفاده می‌شود.
 
 ### نصب و اجرا
 
@@ -30,66 +30,67 @@ pip install -r requirements.txt
 python main.py
 ```
 
-### نسخه ویندوز و انتشار در GitHub Releases
+### دریافت نسخه‌ی ویندوز
 
-با push کردن یک تگ نسخه مثل `v1.0.0`، workflow انتشار به‌صورت خودکار
-نسخه‌ی مستقل ویندوز (`flappy-2048.exe`) را با PyInstaller می‌سازد و به
-GitHub Release همان تگ attach می‌کند:
+برای اجرای نسخه‌ی ویندوز نیازی به نصب Python نیست. فایل `flappy-2048.exe` را از بخش **Releases** در GitHub دانلود و اجرا کنید.
+
+### ساخت خودکار فایل EXE و انتشار در GitHub
+
+Workflow انتشار با push شدن هر تگ نسخه‌ای که با `v` شروع شود، فایل مستقل ویندوز را می‌سازد و در Release همان تگ قرار می‌دهد:
 
 ```bash
+git add .
+git commit -m "Prepare release"
+git push origin main
+
 git tag v1.0.0
 git push origin v1.0.0
 ```
+
+پس از پایان اجرای workflow، فایل `flappy-2048.exe` در صفحه‌ی Release قابل دانلود است. اجرای workflow ممکن است چند دقیقه زمان ببرد؛ نتیجه را می‌توانید در تب **Actions** مشاهده کنید.
 
 ### کنترل بازی
 
 | ورودی | عملکرد |
 | --- | --- |
-| کلیک / تپ / Space / ↑ / W | پرش |
-| `P` | توقف (Pause) — هنگام از دست رفتن فوکوس پنجره هم خودکار pause میشود |
-| `M` یا دکمهی SOUND گوشهی پایین-راست | قطع/وصل صدا |
+| کلیک / لمس / `Space` / `↑` / `W` | پرش |
+| `P` | توقف بازی؛ با از دست رفتن فوکوس پنجره نیز بازی خودکار متوقف می‌شود |
+| `M` یا دکمه‌ی SOUND | قطع یا وصل کردن صدا |
 | `Esc` یا `Q` | خروج |
 
 ### سطوح سختی
 
-در صفحهی شروع سه سطح **EASY / MEDIUM / HARD** قابل انتخاب است؛ هر سطح ستونها (سرعت، رشد سرعت، اندازهی شکاف، فاصله) **و** مکعب (اندازه، جاذبه، قدرت پرش) را تنظیم میکند. آخرین انتخاب به خاطر سپرده میشود و **Best Score برای هر سطح جدا** ذخیره و روی دکمهی همان سطح نمایش داده میشود. از منوی Pause با دکمهی **MENU** میتوانی به صفحهی شروع برگردی و سطح را عوض کنی.
+در صفحه‌ی شروع سه سطح **EASY**، **MEDIUM** و **HARD** وجود دارد. هر سطح سرعت و فاصله‌ی ستون‌ها، اندازه‌ی شکاف و ویژگی‌های فیزیکی مکعب را تغییر می‌دهد. انتخاب آخر شما و بهترین امتیاز هر سطح به‌صورت جداگانه ذخیره می‌شود.
 
 | پارامتر | EASY | MEDIUM | HARD |
-| --- | --- | --- | --- |
-| اندازهی مکعب | ۵۲px | ۵۶px | ۶۰px |
+| --- | ---: | ---: | ---: |
+| اندازه‌ی مکعب | ۵۲px | ۵۶px | ۶۰px |
 | جاذبه | ۱۳۰۰ | ۱۵۰۰ | ۱۶۰۰ |
 | قدرت پرش | −۵۸۰ | −۵۶۰ | −۵۳۰ |
-| ارتفاع پرش | ~۱۲۹px | ~۱۰۴px | ~۸۸px |
-| اندازهی شکاف | ۲۴۶px | ۲۱۵px | ۱۹۰px |
-| بازشدگی واقعی (شکاف − مکعب) | ۱۹۴px | ۱۵۹px | ۱۳۰px |
+| ارتفاع پرش تقریبی | ۱۲۹px | ۱۰۴px | ۸۸px |
+| اندازه‌ی شکاف | ۲۴۶px | ۲۱۵px | ۱۹۰px |
 | سرعت پایه | ۱۱۵ | ۱۴۰ | ۱۷۰ |
-| رشد سرعت | ۰.۰۰۳۰ | ۰.۰۰۳۸ | ۰.۰۰۵۵ |
-| فاصلهی ستونها | ۲۸۰px | ۲۵۰px | ۲۴۰px |
+| فاصله‌ی ستون‌ها | ۲۸۰px | ۲۵۰px | ۲۴۰px |
 
-**چیت کد مخفی 🤫:** موقع بازی (یا Pause) روی ردیف اعداد `2048` را تایپ کن تا مستقیم به صفحهی برد برسی.
+**کد مخفی:** هنگام بازی یا توقف، عدد `2048` را با ردیف عددی کیبورد وارد کنید تا مستقیماً به صفحه‌ی برد بروید.
 
 ### ساختار پروژه
 
 | فایل | لایه | وظیفه |
 | --- | --- | --- |
-| `main.py` | اپ | نقطهی ورود، حلقهی بازی، ماشین حالت (Start / Playing / GameOver / Win) و مدیریت رویدادها |
-| `settings.py` | تنظیمات | همهی مقادیر قابل تنظیم: سایز پنجره، فیزیک، رنگها، سطوح سختی — بدون import از pygame |
-| `game_logic.py` | **منطق** | ترکیب اعداد (۲۰۴۸)، تولید عدد ستونها، دشواری تدریجی، کمکیهای برخورد — توابع خالص |
-| `player.py` | **منطق** | مکعب بازیکن: فیزیک پرش/جاذبه، عدد فعلی، پالس ترکیب — بدون pygame |
-| `obstacle.py` | **منطق** | ستونها: شکاف، بج عدد، حرکت، تست برخورد — بدون pygame |
-| `storage.py` | **منطق** | ذخیرهی رکوردها، سطح انتخابی و حالت صدا در JSON — بدون pygame |
-| `ui.py` | رندر | همهی ترسیمها: مکعب، ستونها، ابرها، کانفتی، HUD و صفحهها |
-| `sound.py` | رندر | افکتهای صوتی سینتزشده (بدون فایل صوتی) |
-
-انیمیشنها با **delta time** (`clock.tick(FPS)`) اجرا میشوند تا سرعت بازی روی هر سیستمی یکسان باشد.
+| `main.py` | اپلیکیشن | نقطه‌ی ورود، حلقه‌ی بازی، ماشین حالت و مدیریت رویدادها |
+| `settings.py` | تنظیمات | اندازه‌ی پنجره، فیزیک، رنگ‌ها و سطوح سختی |
+| `game_logic.py` | منطق | ترکیب اعداد، تولید ستون‌ها، افزایش سختی و بررسی برخورد |
+| `player.py` | منطق | فیزیک مکعب بازیکن و پرش‌ها |
+| `obstacle.py` | منطق | ستون‌ها، شکاف‌ها، نشان عددی و برخوردها |
+| `storage.py` | منطق | ذخیره‌ی رکوردها، سطح انتخابی و وضعیت صدا |
+| `ui.py` | نمایش | رسم مکعب، ستون‌ها، ابرها، کانفتی، HUD و صفحه‌ها |
+| `sound.py` | صدا | تولید افکت‌های صوتی بدون فایل صوتی جداگانه |
 
 ### تست
 
 ```bash
-# تستهای واحد منطق + تستهای یکپارچه (بدون نیاز به پنجره)
 python -m unittest tests.test_logic tests.test_smoke
-
-# اجرای سرپایی headless (~۲۰ ثانیه شبیهسازی، بدون پنجره)
 python main.py --selftest
 ```
 
@@ -99,93 +100,77 @@ python main.py --selftest
 
 ### Overview
 
-**Flappy 2048** is a 2D arcade game blending **Flappy Bird** mechanics
-with **2048** scoring. Instead of a bird, you control a **colored
-cube** that carries a number (starting at 2). Tap / click / press Space
-to hop, and fly through the gaps of scrolling columns. Touch the
-**number badge** inside a gap and, if it equals your cube's number, the
-two merge like in 2048 (2+2=4) — your cube's color and number update.
-Reach **2048** to win!
+**Flappy 2048** is a 2D arcade game blending **Flappy Bird** mechanics with **2048** scoring. Control a colored cube, fly through gaps in scrolling columns, merge matching numbers, and reach **2048** to win.
 
-Built on **pygame-ce** (the actively maintained community edition of
-pygame), with the core game logic (physics, column generation, number
-merging) kept **completely independent of pygame** — only the rendering
-layer touches pygame, so a future HTML5/JavaScript port is
-straightforward.
+The game is built with **pygame-ce**. Its core logic—physics, column generation, number merging, and collision helpers—is independent of pygame, while pygame is used for rendering, input, and sound.
 
-### Install & run
+### Install and run
 
 ```bash
 pip install -r requirements.txt
 python main.py
 ```
 
-### Windows executable and GitHub Releases
+### Windows executable
 
-Pushing a version tag such as `v1.0.0` automatically builds a standalone
-Windows executable (`flappy-2048.exe`) with PyInstaller and attaches it to
-the GitHub Release for that tag:
+Download `flappy-2048.exe` from the repository’s **Releases** page. Python does not need to be installed to run the executable.
+
+### Automated GitHub Releases
+
+The release workflow runs when a version tag beginning with `v` is pushed. It builds a standalone Windows executable with PyInstaller and uploads it to the GitHub Release for that tag:
 
 ```bash
+git add .
+git commit -m "Prepare release"
+git push origin main
+
 git tag v1.0.0
 git push origin v1.0.0
 ```
+
+The executable appears as `flappy-2048.exe` after the workflow finishes. You can monitor the build in the repository’s **Actions** tab.
 
 ### Controls
 
 | Input | Action |
 | --- | --- |
-| Click / tap / Space / ↑ / W | Jump |
-| `P` | Pause (the game also auto-pauses when the window loses focus) |
-| `M` or the SOUND pill (bottom-right) | Toggle sound |
+| Click / tap / `Space` / `↑` / `W` | Jump |
+| `P` | Pause; the game also pauses when the window loses focus |
+| `M` or the SOUND button | Toggle sound |
 | `Esc` or `Q` | Quit |
 
 ### Difficulty levels
 
-The start screen offers **EASY / MEDIUM / HARD**. Each level tunes the
-columns (base speed, speed growth, gap size, spacing) **and** the cube
-(size, gravity, jump). Your last choice is remembered, and the **best
-score is tracked separately per level** and shown on each level button.
-From the pause menu, **MENU** returns to the start screen to switch
-levels.
+The start screen offers **EASY**, **MEDIUM**, and **HARD**. Each level changes the column speed and spacing, gap size, and cube physics. The selected level and best score are saved separately for each difficulty.
 
 | Parameter | EASY | MEDIUM | HARD |
-| --- | --- | --- | --- |
+| --- | ---: | ---: | ---: |
 | Cube size | 52px | 56px | 60px |
 | Gravity | 1300 | 1500 | 1600 |
 | Jump velocity | −580 | −560 | −530 |
-| Jump height | ~129px | ~104px | ~88px |
+| Approx. jump height | 129px | 104px | 88px |
 | Gap height | 246px | 215px | 190px |
-| Real opening (gap − cube) | 194px | 159px | 130px |
 | Base speed | 115 | 140 | 170 |
-| Speed growth | 0.0030 | 0.0038 | 0.0055 |
 | Column spacing | 280px | 250px | 240px |
 
-**Hidden cheat 🤫:** while playing (or paused), type `2048` on the
-number row to jump straight to the win screen.
+**Hidden cheat:** while playing or paused, type `2048` using the number row to jump directly to the win screen.
 
 ### Project structure
 
 | File | Layer | Purpose |
 | --- | --- | --- |
-| `main.py` | app | Entry point, game loop, state machine (Start / Playing / GameOver / Win), event handling |
-| `settings.py` | config | All tunable values: window, physics, colors, difficulty levels — no pygame imports |
-| `game_logic.py` | **logic** | 2048 merging, column number generation, gradual difficulty, collision helpers — pure functions |
-| `player.py` | **logic** | Player cube: jump/gravity physics, current number, merge pulse — no pygame |
-| `obstacle.py` | **logic** | Columns: gap, number badge, movement, collision tests — no pygame |
-| `storage.py` | **logic** | Best scores, chosen level and mute state persisted to JSON — no pygame |
-| `ui.py` | render | Everything drawn on screen: cube, columns, clouds, confetti, HUD, screens |
-| `sound.py` | render | Synthesized sound effects (no audio asset files) |
-
-Animations are driven by **delta time** (`clock.tick(FPS)`), so the
-game runs at the same speed on any machine.
+| `main.py` | app | Entry point, game loop, state machine, and event handling |
+| `settings.py` | config | Window, physics, colors, and difficulty settings |
+| `game_logic.py` | logic | 2048 merging, column generation, difficulty, and collision helpers |
+| `player.py` | logic | Player cube physics and jumping |
+| `obstacle.py` | logic | Columns, gaps, number badges, and collision tests |
+| `storage.py` | logic | Persistent scores, selected difficulty, and sound state |
+| `ui.py` | rendering | Cube, columns, clouds, confetti, HUD, and screens |
+| `sound.py` | audio | Synthesized sound effects without audio asset files |
 
 ### Tests
 
 ```bash
-# Logic unit tests + integration smoke tests (no window needed)
 python -m unittest tests.test_logic tests.test_smoke
-
-# Headless smoke run (~20s of simulated gameplay, no window)
 python main.py --selftest
 ```

@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  PYTHONIOENCODING: utf-8
+
 jobs:
   build-windows:
     name: Build Windows executable
@@ -24,15 +27,26 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
+        shell: bash
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          python -m pip install -r requirements.txt pyinstaller
 
       - name: Build executable
-        run: pyinstaller --noconfirm --clean --onefile --windowed --name flappy-2048 main.py
+        shell: bash
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name flappy-2048 main.py
+          test -f dist/flappy-2048.exe
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
+          name: Flappy 2048 ${{ github.ref_name }}
+          body: |
+            نسخه ویندوز بازی Flappy 2048.
+
+            فایل `flappy-2048.exe` را دانلود و اجرا کنید؛ نصب جداگانه Python لازم نیست.
           files: dist/flappy-2048.exe
           generate_release_notes: true
+          fail_on_unmatched_files: true

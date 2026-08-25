@@ -30,6 +30,17 @@ pip install -r requirements.txt
 python main.py
 ```
 
+### نسخه ویندوز و انتشار در GitHub Releases
+
+با push کردن یک تگ نسخه مثل `v1.0.0`، workflow انتشار به‌صورت خودکار
+نسخه‌ی مستقل ویندوز (`flappy-2048.exe`) را با PyInstaller می‌سازد و به
+GitHub Release همان تگ attach می‌کند:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
 ### کنترل بازی
 
 | ورودی | عملکرد |
@@ -107,6 +118,17 @@ straightforward.
 ```bash
 pip install -r requirements.txt
 python main.py
+```
+
+### Windows executable and GitHub Releases
+
+Pushing a version tag such as `v1.0.0` automatically builds a standalone
+Windows executable (`flappy-2048.exe`) with PyInstaller and attaches it to
+the GitHub Release for that tag:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 ### Controls

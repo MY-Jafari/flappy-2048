@@ -7,6 +7,9 @@ rebalanced without touching the logic or rendering code.
 This module is pure data — it never imports pygame.
 """
 
+import os
+import sys
+
 # ---------------------------------------------------------------------------
 # Window / timing
 # ---------------------------------------------------------------------------
@@ -50,6 +53,11 @@ SPEED_ACCEL = 0.0045      # px/s gained per pixel of distance traveled
 MAX_SPEED = 330.0         # speed cap
 
 BADGE_SIZE = 52           # size of the number block attached to the gap
+
+# The drawn sprites have rounded corners but collision is plain AABB;
+# shrink the player's hitbox by this many pixels per side so deaths
+# only register on pixels that visibly overlap the columns.
+HITBOX_INSET = 4.0
 
 # ---------------------------------------------------------------------------
 # Animation / background
@@ -165,7 +173,23 @@ UI_SELECT_EDGE = (56, 148, 74)
 # ---------------------------------------------------------------------------
 # Storage
 # ---------------------------------------------------------------------------
-import os
+def _default_best_score_path() -> str:
+    """Location of best_score.json in a directory that stays writable.
 
-BEST_SCORE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                               "best_score.json")
+    Running from source keeps the save file next to the code (as before).
+    A PyInstaller --onefile build extracts into a temp dir that is DELETED
+    on exit, so frozen builds must store saves under the user's data
+    directory instead or all progress would be lost every run.
+    """
+    if getattr(sys, "frozen", False):
+        if sys.platform == "win32":
+            base = os.environ.get("APPDATA") or os.path.expanduser("~")
+        else:
+            base = (os.environ.get("XDG_DATA_HOME")
+                    or os.path.join(os.path.expanduser("~"), ".local", "share"))
+        return os.path.join(base, "Flappy2048", "best_score.json")
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        "best_score.json")
+
+
+BEST_SCORE_PATH = _default_best_score_path()

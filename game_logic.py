@@ -100,6 +100,18 @@ def rects_overlap(ax: float, ay: float, aw: float, ah: float,
             ay < by + bh and ay + ah > by)
 
 
+def inset_rect(rect: tuple, inset: float) -> tuple:
+    """Shrink an (x, y, w, h) AABB by ``inset`` pixels on every side.
+
+    Used to make collision boxes slightly smaller than the drawn
+    sprites, whose rounded corners would otherwise kill the player on
+    pixels that only look empty.
+    """
+    x, y, w, h = rect
+    return (x + inset, y + inset,
+            max(1.0, w - 2.0 * inset), max(1.0, h - 2.0 * inset))
+
+
 def clamp(value: float, low: float, high: float) -> float:
     """Clamp ``value`` into the inclusive range [low, high]."""
     return max(low, min(high, value))
@@ -115,13 +127,6 @@ def ease_out_cubic(t: float) -> float:
     """Ease-out cubic easing function, used by animations."""
     t = clamp(t, 0.0, 1.0)
     return 1.0 - (1.0 - t) ** 3
-
-
-def ease_out_back(t: float) -> float:
-    """Ease-out-back: overshoots slightly, nice for pop-in animations."""
-    t = clamp(t, 0.0, 1.0)
-    c1, c3 = 1.70158, 2.70158
-    return 1.0 + c3 * (t - 1.0) ** 3 + c1 * (t - 1.0) ** 2
 
 
 

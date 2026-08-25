@@ -6,6 +6,7 @@ Run with:  python -m unittest tests.test_smoke
 """
 
 import os
+import random
 import tempfile
 import unittest
 
@@ -17,14 +18,15 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 from main import Game, State            # noqa: E402  (needs env vars first)
 from obstacle import Obstacle           # noqa: E402
 from settings import (                  # noqa: E402
-    DIFFICULTIES, COLUMN_SPACING, COLUMN_WIDTH, GAP_HEIGHT, JUMP_VELOCITY,
-    RESTART_COOLDOWN, START_VALUE, WIN_ANIM_TIME, WIN_VALUE,
+    DIFFICULTIES, COLUMN_SPACING, COLUMN_WIDTH, GAP_HEIGHT, HITBOX_INSET,
+    JUMP_VELOCITY, RESTART_COOLDOWN, START_VALUE, WIN_ANIM_TIME, WIN_VALUE,
     WINDOW_HEIGHT,
 )
 from storage import (                   # noqa: E402
     load_best_scores, load_level, load_muted, set_level, set_muted,
     update_best_score,
 )
+from ui import Clouds                   # noqa: E402
 
 DT = 1 / 60
 
@@ -257,6 +259,72 @@ class GameSmokeTests(unittest.TestCase):
         self.assertIs(self.game.state, State.START)
         self.assertEqual(self.game.obstacles, [])
 
+    # -- abandoned runs still record their best ---------------------------
+
+    def _click_pause_button(self, action):
+        self.press_key(pygame.K_p)
+        self.game._draw()
+        button = next(b for b in self.game.screen_buttons
+                      if b.action == action)
+        self.game._handle_event(pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN, button=1, pos=button.rect.center))
+
+    def test_pause_restart_records_best_of_abandoned_run(self):
+        self.game._start_run()
+        self.game.player.value = 512
+        self._click_pause_button("restart")
+        self.assertIs(self.game.state, State.PLAYING)
+        self.assertEqual(self.game.player.value, START_VALUE)  # fresh run
+        self.assertEqual(load_best_scores(self.best_path)["medium"], 512)
+
+    def test_pause_menu_records_best_of_abandoned_run(self):
+        self.game._start_run()
+        self.game.player.value = 256
+        self._click_pause_button("menu")
+        self.assertIs(self.game.state, State.START)
+        self.assertEqual(load_best_scores(self.best_path)["medium"], 256)
+
+    # -- forgiving hitbox (rounded art vs AABB collision) ------------------
+
+    def _obstacle_overlapping_top_block_by(self, depth: float) -> Obstacle:
+        """Column whose top block reaches ``depth`` px into the player."""
+        top_block_bottom = self.game.player.top + depth
+        return Obstacle(
+            self.game.player.x - 10, top_block_bottom + GAP_HEIGHT / 2.0,
+            GAP_HEIGHT, COLUMN_WIDTH, number=self.game.player.value,
+            world_height=WINDOW_HEIGHT)
+
+    def test_grazing_column_within_inset_does_not_kill(self):
+        # Raw AABBs overlap by 2px (< HITBOX_INSET): the rounded corner art
+        # means nothing is visibly touching, so the player must survive.
+        self.game._start_run()
+        self.game.obstacles.append(
+            self._obstacle_overlapping_top_block_by(2.0))
+        self.assertLess(2.0, HITBOX_INSET)
+        self.step()
+        self.assertIs(self.game.state, State.PLAYING)
+
+    def test_deep_overlap_still_kills(self):
+        # Control for the inset: 20px of real overlap must still die.
+        self.game._start_run()
+        self.game.obstacles.append(
+            self._obstacle_overlapping_top_block_by(20.0))
+        self.step()
+        self.assertIs(self.game.state, State.DYING)
+
+    # -- clouds are deterministic under a seeded rng -----------------------
+
+    def test_clouds_respect_injected_rng(self):
+        a, b = Clouds(random.Random(9)), Clouds(random.Random(9))
+        for cloud_a, cloud_b in zip(a.clouds, b.clouds):
+            # Force every cloud past the left edge so update() wraps them.
+            cloud_a["x"] = cloud_b["x"] = -cloud_a["surf"].get_width() - 1
+        a.update(DT)
+        b.update(DT)
+        for cloud_a, cloud_b in zip(a.clouds, b.clouds):
+            self.assertEqual(cloud_a["x"], cloud_b["x"])
+            self.assertEqual(cloud_a["y"], cloud_b["y"])
+
 
 class StorageTests(unittest.TestCase):
     def setUp(self):
@@ -290,6 +358,17 @@ class StorageTests(unittest.TestCase):
             fh.write("not json {")
         self.assertEqual(load_best_scores(self.path),
                          {"easy": 0, "medium": 0, "hard": 0})
+
+    def test_boolean_scores_are_rejected(self):
+        # bool is a subclass of int; True/False must not load as scores.
+        with open(self.path, "w", encoding="utf-8") as fh:
+            fh.write('{"best": {"medium": true, "hard": false}}')
+        bests = load_best_scores(self.path)
+        self.assertEqual(bests["medium"], 0)
+        self.assertEqual(bests["hard"], 0)
+        with open(self.path, "w", encoding="utf-8") as fh:
+            fh.write('{"best": false}')  # legacy single-value form
+        self.assertEqual(load_best_scores(self.path)["medium"], 0)
 
     def test_legacy_file_migrates_to_medium(self):
         with open(self.path, "w", encoding="utf-8") as fh:

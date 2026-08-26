@@ -62,10 +62,7 @@ class FontCache:
     def get(self, size: int, bold: bool = False) -> pygame.font.Font:
         key = (size, bold)
         if key not in self._fonts:
-            font = pygame.font.SysFont(FONT_NAME, size, bold=bold)
-            if font is None:
-                font = pygame.font.Font(None, size)
-            self._fonts[key] = font
+            self._fonts[key] = pygame.font.SysFont(FONT_NAME, size, bold=bold)
         return self._fonts[key]
 
 
@@ -214,6 +211,7 @@ class Clouds:
     """A few cartoon clouds drifting slowly leftwards (presentation only)."""
 
     def __init__(self, rng: random.Random) -> None:
+        self._rng = rng
         self.clouds: List[dict] = []
         for _ in range(CLOUD_COUNT):
             self.clouds.append(self._make_cloud(rng, rng.uniform(0, WINDOW_WIDTH)))
@@ -237,8 +235,8 @@ class Clouds:
         for cloud in self.clouds:
             cloud["x"] -= cloud["speed"] * dt
             if cloud["x"] + cloud["surf"].get_width() < 0:
-                cloud["x"] = WINDOW_WIDTH + random.uniform(10, 120)
-                cloud["y"] = random.uniform(30, 260)
+                cloud["x"] = WINDOW_WIDTH + self._rng.uniform(10, 120)
+                cloud["y"] = self._rng.uniform(30, 260)
 
     def draw(self, surface: pygame.Surface) -> None:
         for cloud in self.clouds:
@@ -246,13 +244,22 @@ class Clouds:
 
 
 class Confetti:
-    """Celebration confetti falling over the play area."""
+    """Celebration confetti falling over the play area.
+
+    Pieces are pre-rendered and rotation is quantized to ANGLE_STEP
+    buckets with a shared cache, so drawing allocates no new surfaces
+    per frame (previously 90 surfaces were built every frame).
+    """
+
+    ANGLE_STEP = 15  # degrees between cached rotations
 
     def __init__(self, count: int, rng: random.Random) -> None:
         self._rng = rng
         self.particles = []
         for _ in range(count):
             self.particles.append(self._make(rng.uniform(0, WINDOW_WIDTH)))
+        self._pieces = {}    # (color, size) -> unrotated square
+        self._rotated = {}   # (color, size, angle bucket) -> rotated piece
 
     def _make(self, x: float) -> dict:
         return {
@@ -262,7 +269,7 @@ class Confetti:
             "vx": self._rng.uniform(-30, 30),
             "rot": self._rng.uniform(0, 360),
             "vrot": self._rng.uniform(-240, 240),
-            "size": self._rng.uniform(6, 12),
+            "size": float(self._rng.choice((6, 9, 12))),
             "color": self._rng.choice(CONFETTI_COLORS),
         }
 
@@ -270,17 +277,26 @@ class Confetti:
         for p in self.particles:
             p["y"] += p["vy"] * dt
             p["x"] += p["vx"] * dt
-            p["rot"] += p["vrot"] * dt
+            p["rot"] = (p["rot"] + p["vrot"] * dt) % 360.0
             if p["y"] > WINDOW_HEIGHT + 20:
                 p.update(self._make(-10))  # recycle at the top
 
     def draw(self, surface: pygame.Surface) -> None:
         for p in self.particles:
-            side = int(p["size"])
-            piece = pygame.Surface((side, side), pygame.SRCALPHA)
-            pygame.draw.rect(piece, p["color"],
-                             (0, 0, side, side), border_radius=2)
-            piece = pygame.transform.rotate(piece, p["rot"])
+            size = int(p["size"])
+            bucket = int(p["rot"] // self.ANGLE_STEP)
+            key = (p["color"], size, bucket)
+            piece = self._rotated.get(key)
+            if piece is None:
+                base = self._pieces.get((p["color"], size))
+                if base is None:
+                    base = pygame.Surface((size, size), pygame.SRCALPHA)
+                    pygame.draw.rect(base, p["color"], base.get_rect(),
+                                     border_radius=2)
+                    self._pieces[(p["color"], size)] = base
+                piece = pygame.transform.rotate(
+                    base, bucket * self.ANGLE_STEP)
+                self._rotated[key] = piece
             rect = piece.get_rect(center=(int(p["x"]), int(p["y"])))
             surface.blit(piece, rect)
 

@@ -26,12 +26,12 @@ import sys
 import pygame
 
 import ui
-from game_logic import merge_numbers, speed_at
+from game_logic import inset_rect, merge_numbers, speed_at
 from obstacle import Obstacle, spawn_obstacle
 from player import Player
 from settings import (
     BADGE_SIZE, BEST_SCORE_PATH, CAPTION, COLUMN_WIDTH, DEATH_ANIM_TIME,
-    DIFFICULTIES, FPS, GAP_MARGIN, MAX_FALL_SPEED, MAX_SPEED,
+    DIFFICULTIES, FPS, GAP_MARGIN, HITBOX_INSET, MAX_FALL_SPEED, MAX_SPEED,
     MERGE_PULSE_TIME, PLAYER_X, RESTART_COOLDOWN, SCREEN_FADE_TIME,
     START_VALUE, WIN_ANIM_TIME, WIN_VALUE, WINDOW_HEIGHT, WINDOW_WIDTH,
 )
@@ -76,7 +76,6 @@ class Game:
         self.sound.muted = self.muted
         self.mouse_pos = (0, 0)
         self.screen_buttons = []
-        self.popups = []
         self._cheat = ""
 
         self.state = State.START
@@ -219,6 +218,7 @@ class Game:
 
     def _to_menu(self) -> None:
         """Return to the start screen (from the pause menu)."""
+        self._save_progress()  # an abandoned run still counts for best
         self.reset_run()
         self.state = State.START
         self.state_time = 0.0
@@ -236,6 +236,9 @@ class Game:
                                 self.player.top - 12, 1.2, 1.2))
 
     def _start_run(self) -> None:
+        # Restarting over an in-progress run (pause menu) must record the
+        # abandoned value first, exactly like quitting or dying would.
+        self._save_progress()
         self.reset_run()
         self.state = State.PLAYING
         self.state_time = 0.0
@@ -308,8 +311,11 @@ class Game:
             obstacle.update(dt, self.speed)
 
         player_rect = self.player.rect()
+        # Deaths use a slightly shrunk box: the drawn sprites have rounded
+        # corners, so the raw AABB would kill on pixels that look empty.
+        body_rect = inset_rect(player_rect, HITBOX_INSET)
         for obstacle in self.obstacles:
-            if obstacle.hits_body(player_rect):
+            if obstacle.hits_body(body_rect):
                 self._die()
                 return
             if not obstacle.merged and obstacle.hits_badge(player_rect,

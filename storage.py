@@ -18,6 +18,7 @@ migrated on load — the old single best score becomes the medium score.
 from __future__ import annotations
 
 import json
+import os
 
 from settings import BEST_SCORE_PATH, DEFAULT_DIFFICULTY, DIFFICULTY_ORDER
 
@@ -46,13 +47,15 @@ def load_state(path: str = BEST_SCORE_PATH) -> dict:
             return state
 
         # Best scores: either per-level dict or legacy single integer.
+        # Strict int check: bool is a subclass of int, and True/False
+        # must not be mistaken for the scores 1/0.
         best = data.get("best")
         if isinstance(best, dict):
             for level in DIFFICULTY_ORDER:
                 value = best.get(level)
-                if isinstance(value, int) and value >= 0:
+                if type(value) is int and value >= 0:
                     state["best"][level] = value
-        elif isinstance(best, int) and best >= 0:
+        elif type(best) is int and best >= 0:
             state["best"]["medium"] = best  # legacy file migration
 
         if isinstance(data.get("muted"), bool):
@@ -67,6 +70,8 @@ def load_state(path: str = BEST_SCORE_PATH) -> dict:
 def save_state(state: dict, path: str = BEST_SCORE_PATH) -> None:
     """Write the state dict to disk (best-effort, never raises)."""
     try:
+        directory = os.path.dirname(os.path.abspath(path))
+        os.makedirs(directory, exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
             json.dump({
                 "best": {level: int(state["best"][level])

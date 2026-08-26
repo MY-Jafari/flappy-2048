@@ -8,8 +8,9 @@ import unittest
 
 import game_logic
 from game_logic import (
-    clamp, ease_out_cubic, lerp, merge_numbers, pick_column_number,
-    powers_of_two, rects_overlap, smaller_powers_of_two, speed_at,
+    clamp, ease_out_cubic, inset_rect, lerp, merge_numbers,
+    pick_column_number, powers_of_two, rects_overlap, smaller_powers_of_two,
+    speed_at,
 )
 from obstacle import Obstacle, spawn_obstacle
 from player import Player
@@ -144,6 +145,13 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(ease_out_cubic(0), 0)
         self.assertEqual(ease_out_cubic(1), 1)
         self.assertAlmostEqual(ease_out_cubic(0.5), 0.875)
+
+    def test_inset_rect_shrinks_on_every_side(self):
+        self.assertEqual(inset_rect((0, 0, 10, 10), 2), (2, 2, 6, 6))
+
+    def test_inset_rect_never_collapses(self):
+        # Dimensions are clamped to at least 1px for extreme insets.
+        self.assertEqual(inset_rect((5, 5, 4, 4), 100), (105, 105, 1.0, 1.0))
 
 
 if __name__ == "__main__":

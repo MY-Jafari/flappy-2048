@@ -23,7 +23,6 @@ class Player:
         self.vy = 0.0               # vertical speed, px/s (negative = up)
         self.value = value          # current number on the cube
         self.pulse = 0.0            # seconds remaining of the merge pulse
-        self.alive = True
 
     # -- geometry ---------------------------------------------------------
 
